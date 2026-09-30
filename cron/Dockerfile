@@ -1,17 +1,14 @@
 # syntax=docker/dockerfile:1
 # Requires scholar-base:latest (build base/Dockerfile first — see docker-compose.yml).
-# Cron daemon is intentional multi-process; sudo lets non-root start cron only.
+# Cron daemon runs as root (needs privileges); jobs still run as app_user via crontab -u.
 FROM scholar-base:latest
 
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         cron \
-        sudo \
     && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p /var/run/crond \
-    && chown -R app_user:app_user /var/run/crond \
-    && echo "app_user ALL=(ALL) NOPASSWD: /usr/sbin/cron" >> /etc/sudoers
+    && mkdir -p /var/run/crond
 
 COPY --chown=app_user:app_user . .
 
@@ -26,9 +23,4 @@ RUN touch /var/log/app.log \
     && chmod 0644 /etc/cron.d/scholar_cron \
     && crontab -u app_user /etc/cron.d/scholar_cron
 
-RUN printf '%s\n' '#!/bin/bash' 'exec sudo /usr/sbin/cron -f' > /app/start-cron.sh \
-    && chmod +x /app/start-cron.sh
-
-USER app_user
-
-CMD ["/app/start-cron.sh"]
+CMD ["/usr/sbin/cron", "-f"]
