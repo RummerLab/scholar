@@ -4,7 +4,7 @@ Agent-focused guidance for this repository ([AGENTS.md format](https://agents.md
 
 ## Project overview
 
-Google Scholar scraper and Flask API (`RummerLab/scholar`). Runtime deps: `requirements.txt`. Lint/test deps: `requirements-dev.txt` (includes runtime via `-r requirements.txt`).
+Google Scholar scraper and Flask API (`RummerLab/scholar`). Runtime deps: `requirements.txt`. Lint/test deps: `requirements-dev.txt` (includes runtime via `-r requirements.txt`). Docker base image: `python:3.10-slim-trixie` (see `base/Dockerfile`); web/cron build on `scholar-base:latest`.
 
 ## Setup commands
 

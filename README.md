@@ -42,14 +42,14 @@ See also [Zotero](https://www.zotero.org/), an [open source citation manager](ht
 
 ## Docker
 
-The stack includes:
+Images are based on `python:3.10-slim-trixie` (Debian 13). The stack includes:
 
 - **web** – Gunicorn + Flask API serving scholar data
 - **cron** – Runs the main scraper and DOI metrics revalidation on a schedule
 
 **Cron schedule** (in `cron/Dockerfile`): full scholar pipeline (`python -u main.py <id>`) at **00:00 daily**; DOI metrics revalidation at **02:00 daily** — each for the three scholar IDs in that file.
 
-Build the base image first (web and cron use it; the base container exits immediately):
+Build the base image first (web and cron use it; the base container exits immediately). The base image installs Playwright Chromium (for Scrapling browser DOI fetches):
 
 ```bash
 docker compose build base
@@ -70,7 +70,7 @@ docker compose up -d
 git pull; docker compose up -d --build; docker compose logs -f
 ```
 
-For browser-based DOI fetching on sites that block plain HTTP, the project uses [Scrapling](https://github.com/D4Vinci/Scrapling). Install browser dependencies with `scrapling install` if you use that path.
+For local (non-Docker) browser-based DOI fetching on sites that block plain HTTP, install [Scrapling](https://github.com/D4Vinci/Scrapling) browser deps with `scrapling install` after `pip install -r requirements.txt`.
 
 ### Caching
 
