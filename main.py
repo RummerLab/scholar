@@ -8,7 +8,12 @@ import src.cache_config  # noqa: F401 - configure HTTP cache before any requests
 from src.config import Config
 from src.doi_resolver import resolve_doi_for_publication
 from src.logging_config import setup_logging
-from src.output import is_fresh, load_author, save_author, set_last_successful_index
+from src.output import (
+    is_fresh,
+    load_author_by_id,
+    save_author_by_id,
+    set_last_successful_index,
+)
 from src.scholar_fetcher import fetch_full_author
 from src.standardise import standardise_authors
 
@@ -110,7 +115,12 @@ def run(scholar_id: str, config: Config | None = None) -> int:
     journal_impact_factor_dic = load_impact_factor()
     log.info("Loaded %d impact factors", len(journal_impact_factor_dic))
 
-    previous = load_author(config.output_path)
+    data_dir = config.scholar_data_dir
+    try:
+        previous = load_author_by_id(scholar_id, data_dir)
+    except ValueError as e:
+        log.error("%s", e)
+        return 1
     if previous:
         log.info("Loaded previous data for %s", scholar_id)
 
@@ -126,11 +136,11 @@ def run(scholar_id: str, config: Config | None = None) -> int:
 
     def on_coauthor_save(author: dict, idx: int, total: int) -> None:
         set_last_successful_index(author, "coauthor", idx - 1)
-        save_author(author, config.output_path)
+        save_author_by_id(author, scholar_id, data_dir)
 
     def on_publication_save(author: dict, idx: int, total: int) -> None:
         set_last_successful_index(author, "publication", idx - 1)
-        save_author(author, config.output_path)
+        save_author_by_id(author, scholar_id, data_dir)
 
     try:
         author = fetch_full_author(
@@ -154,10 +164,10 @@ def run(scholar_id: str, config: Config | None = None) -> int:
             prev_pub,
         )
         set_last_successful_index(author, "publication", i)
-        save_author(author, config.output_path)
+        save_author_by_id(author, scholar_id, data_dir)
 
-    save_author(author, config.output_path)
-    log.info("Author data written to %s", config.output_path)
+    out_path = save_author_by_id(author, scholar_id, data_dir)
+    log.info("Author data written to %s", out_path)
     return 0
 
 
@@ -166,7 +176,12 @@ def main() -> None:
     p = argparse.ArgumentParser(description="Full Google Scholar scrape for one author ID.")
     p.add_argument("scholar_id", help="Google Scholar author ID (e.g. ynWS968AAAAJ)")
     args = p.parse_args()
-    config = Config(scholar_id=args.scholar_id)
+    try:
+        config = Config(scholar_id=args.scholar_id)
+        # Validate path containment before running (rejects traversal in scholar_id).
+        _ = config.output_path
+    except ValueError as e:
+        p.error(str(e))
     sys.exit(run(args.scholar_id, config))
 
 

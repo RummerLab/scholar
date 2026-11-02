@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 
 from dotenv import load_dotenv
 
+from .path_safety import safe_path_under
+
 load_dotenv()
 
 
@@ -39,5 +41,9 @@ class Config:
 
     @property
     def output_path(self) -> str:
-        """Path to the scholar JSON output file."""
-        return os.path.join(self.scholar_data_dir, f"{self.scholar_id}.json")
+        """Path to the scholar JSON output file (contained under ``scholar_data_dir``)."""
+        base = os.path.abspath(self.scholar_data_dir)
+        path = safe_path_under(base, f"{self.scholar_id}.json")
+        if path is None:
+            raise ValueError(f"Invalid scholar_id for output path: {self.scholar_id!r}")
+        return str(path)

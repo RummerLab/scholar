@@ -13,6 +13,7 @@ import logging
 import os
 from dataclasses import dataclass
 from datetime import timedelta
+from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
@@ -21,13 +22,14 @@ import requests_cache
 
 from .doi_utils import normalize_doi
 from .logger import print_warn
+from .path_safety import safe_path_under
 
 logger = logging.getLogger(__name__)
 
 # Cache Crossref HTTP responses for 1 month
-_CACHE_DIR = os.environ.get("CACHE_DIR", "cache")
-_CROSSREF_CACHE_DB = os.path.join(_CACHE_DIR, "http_cache_crossref")
-os.makedirs(_CACHE_DIR, exist_ok=True)
+_CACHE_ROOT = os.path.abspath(os.environ.get("CACHE_DIR", "cache"))
+_CROSSREF_CACHE_DB = os.path.join(_CACHE_ROOT, "http_cache_crossref")
+os.makedirs(_CACHE_ROOT, exist_ok=True)
 _crossref_session = requests_cache.CachedSession(
     _CROSSREF_CACHE_DB,
     backend="sqlite",
@@ -43,11 +45,13 @@ USER_AGENT = (
 CROSSREF_BASE = "https://api.crossref.org"
 CROSSREF_WORKS = f"{CROSSREF_BASE}/works"
 
-CACHE_DIR = os.path.join(os.environ.get("CACHE_DIR", "cache"), "crossref_title")
-CACHE_FILE = os.path.join(CACHE_DIR, "doi_by_title.json")
-
 _logged_failures: set[str] = set()
 _crossref_title_cache: dict[str, str | None] | None = None
+
+
+def _title_cache_file() -> Path | None:
+    """Fixed title→DOI cache path under ``CACHE_DIR``, or ``None`` if unsafe."""
+    return safe_path_under(_CACHE_ROOT, "crossref_title", "doi_by_title.json")
 
 
 def _cache_key(title: str, author: str) -> str:
@@ -59,11 +63,19 @@ def _load_title_cache() -> dict[str, str | None]:
     global _crossref_title_cache
     if _crossref_title_cache is not None:
         return _crossref_title_cache
-    if not os.path.isfile(CACHE_FILE):
+    cache_file = _title_cache_file()
+    if cache_file is None or not cache_file.is_file():
+        _crossref_title_cache = {}
+        return _crossref_title_cache
+    # Re-check containment at the read sink for Snyk/CodeQL path modeling.
+    base = os.path.realpath(_CACHE_ROOT)
+    candidate = os.path.realpath(cache_file)
+    base_prefix = base if base.endswith(os.sep) else base + os.sep
+    if not candidate.startswith(base_prefix):
         _crossref_title_cache = {}
         return _crossref_title_cache
     try:
-        with open(CACHE_FILE, encoding="utf-8") as f:
+        with open(candidate, encoding="utf-8") as f:
             _crossref_title_cache = json.load(f)
     except (json.JSONDecodeError, OSError):
         _crossref_title_cache = {}
@@ -73,9 +85,17 @@ def _load_title_cache() -> dict[str, str | None]:
 def _save_title_cache() -> None:
     if _crossref_title_cache is None:
         return
+    cache_file = _title_cache_file()
+    if cache_file is None:
+        return
+    base = os.path.realpath(_CACHE_ROOT)
+    candidate = os.path.realpath(cache_file)
+    base_prefix = base if base.endswith(os.sep) else base + os.sep
+    if not candidate.startswith(base_prefix):
+        return
     try:
-        os.makedirs(CACHE_DIR, exist_ok=True)
-        with open(CACHE_FILE, "w", encoding="utf-8") as f:
+        os.makedirs(os.path.dirname(candidate), exist_ok=True)
+        with open(candidate, "w", encoding="utf-8") as f:
             json.dump(_crossref_title_cache, f, indent=2)
     except OSError:
         pass

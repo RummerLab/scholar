@@ -85,6 +85,7 @@ CACHE_DIR = os.environ.get("DOI_METRICS_CACHE_DIR", "")
 if not CACHE_DIR:
     base = os.environ.get("CACHE_DIR", "cache")
     CACHE_DIR = os.path.join(base, "doi_metrics")
+CACHE_DIR = os.path.abspath(CACHE_DIR)
 
 
 _CACHE_SAFE_STEM_PATTERN = r"[A-Za-z0-9_.%~()+,;-]+"
