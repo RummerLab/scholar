@@ -67,15 +67,8 @@ def _load_title_cache() -> dict[str, str | None]:
     if cache_file is None or not cache_file.is_file():
         _crossref_title_cache = {}
         return _crossref_title_cache
-    # Re-check containment at the read sink for Snyk/CodeQL path modeling.
-    base = os.path.realpath(_CACHE_ROOT)
-    candidate = os.path.realpath(cache_file)
-    base_prefix = base if base.endswith(os.sep) else base + os.sep
-    if not candidate.startswith(base_prefix):
-        _crossref_title_cache = {}
-        return _crossref_title_cache
     try:
-        with open(candidate, encoding="utf-8") as f:
+        with cache_file.open(encoding="utf-8") as f:
             _crossref_title_cache = json.load(f)
     except (json.JSONDecodeError, OSError):
         _crossref_title_cache = {}
@@ -88,14 +81,9 @@ def _save_title_cache() -> None:
     cache_file = _title_cache_file()
     if cache_file is None:
         return
-    base = os.path.realpath(_CACHE_ROOT)
-    candidate = os.path.realpath(cache_file)
-    base_prefix = base if base.endswith(os.sep) else base + os.sep
-    if not candidate.startswith(base_prefix):
-        return
     try:
-        os.makedirs(os.path.dirname(candidate), exist_ok=True)
-        with open(candidate, "w", encoding="utf-8") as f:
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        with cache_file.open("w", encoding="utf-8") as f:
             json.dump(_crossref_title_cache, f, indent=2)
     except OSError:
         pass

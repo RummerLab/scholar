@@ -21,9 +21,14 @@ def author_json_path(scholar_id: str, data_dir: str) -> Path | None:
     """Resolved ``<scholar_id>.json`` under ``data_dir``, or ``None`` if unsafe."""
     if not scholar_id or not _SCHOLAR_ID_RE.fullmatch(scholar_id):
         return None
-    if os.path.basename(scholar_id) != scholar_id:
-        return None
     return safe_path_under(os.path.abspath(data_dir), f"{scholar_id}.json")
+
+
+def _require_author_json_path(scholar_id: str, data_dir: str) -> Path:
+    path = author_json_path(scholar_id, data_dir)
+    if path is None:
+        raise ValueError(f"Invalid scholar_id for output path: {scholar_id!r}")
+    return path
 
 
 def load_author(path: str | os.PathLike[str]) -> dict[str, Any] | None:
@@ -40,19 +45,8 @@ def load_author(path: str | os.PathLike[str]) -> dict[str, Any] | None:
 
 
 def load_author_by_id(scholar_id: str, data_dir: str) -> dict[str, Any] | None:
-    """Load author JSON for ``scholar_id`` under ``data_dir`` with path containment."""
-    path = author_json_path(scholar_id, data_dir)
-    if path is None:
-        raise ValueError(f"Invalid scholar_id for output path: {scholar_id!r}")
-    if not path.is_file():
-        return None
-    try:
-        with path.open(encoding="utf-8") as f:
-            data = json.load(f)
-        return data
-    except (json.JSONDecodeError, OSError) as e:
-        logger.warning("Failed to load author data from %s: %s", path, e)
-        return None
+    """Load ``<scholar_id>.json`` under ``data_dir``; raise ``ValueError`` for an unsafe id."""
+    return load_author(_require_author_json_path(scholar_id, data_dir))
 
 
 def save_author(
@@ -75,23 +69,12 @@ def save_author_by_id(
     *,
     bump_last_fetched: bool = True,
 ) -> Path:
-    """Save author JSON for ``scholar_id`` under ``data_dir`` with path containment."""
-    # Validate id in this frame so Snyk sees the sanitizer next to the open sink.
-    if not scholar_id or not _SCHOLAR_ID_RE.fullmatch(scholar_id):
-        raise ValueError(f"Invalid scholar_id for output path: {scholar_id!r}")
-    safe_id = os.path.basename(scholar_id)
-    if safe_id != scholar_id:
-        raise ValueError(f"Invalid scholar_id for output path: {scholar_id!r}")
-    path = safe_path_under(os.path.abspath(data_dir), f"{safe_id}.json")
-    if path is None:
-        raise ValueError(f"Invalid scholar_id for output path: {scholar_id!r}")
-    author["schema_version"] = SCHEMA_VERSION
-    if bump_last_fetched:
-        author["last_fetched"] = datetime.now().isoformat()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as f:
-        json.dump(author, f, indent=4)
-    logger.debug("Saved author data to %s", path)
+    """Save ``<scholar_id>.json`` under ``data_dir`` and return its path.
+
+    Raises ``ValueError`` for an unsafe ``scholar_id``.
+    """
+    path = _require_author_json_path(scholar_id, data_dir)
+    save_author(author, path, bump_last_fetched=bump_last_fetched)
     return path
 
 

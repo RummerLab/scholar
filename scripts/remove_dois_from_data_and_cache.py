@@ -47,16 +47,11 @@ def main() -> int:
     data_dir = os.path.abspath(data_dir)
 
     removed_from_data = 0
-    data_dir_abs = os.path.abspath(data_dir)
-    if os.path.isdir(data_dir_abs):
-        for name in os.listdir(data_dir_abs):
+    if os.path.isdir(data_dir):
+        for name in os.listdir(data_dir):
             if not name.endswith(".json"):
                 continue
-            # Match serve.py: only open basenames validated before join.
-            safe_name = os.path.basename(name)
-            if safe_name != name or not safe_name.endswith(".json"):
-                continue
-            path = safe_path_under(data_dir_abs, safe_name)
+            path = safe_path_under(data_dir, name)
             if path is None:
                 continue
             try:

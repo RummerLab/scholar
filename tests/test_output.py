@@ -35,29 +35,6 @@ def test_save_and_load_roundtrip():
         assert "last_fetched" in loaded
 
 
-def test_save_and_load_by_id_roundtrip():
-    from src.output import load_author_by_id, save_author_by_id
-
-    with tempfile.TemporaryDirectory() as d:
-        author = {"name": "Test Author", "publications": []}
-        path = save_author_by_id(author, "ynWS968AAAAJ", d)
-        assert path.name == "ynWS968AAAAJ.json"
-        loaded = load_author_by_id("ynWS968AAAAJ", d)
-        assert loaded is not None
-        assert loaded["name"] == "Test Author"
-
-
-def test_save_author_by_id_rejects_traversal():
-    from src.output import save_author_by_id
-
-    with tempfile.TemporaryDirectory() as d:
-        try:
-            save_author_by_id({"name": "X"}, "../etc/passwd", d)
-            raise AssertionError("expected ValueError")
-        except ValueError:
-            pass
-
-
 def test_save_author_can_skip_last_fetched_bump():
     with tempfile.TemporaryDirectory() as d:
         path = os.path.join(d, "author.json")
@@ -113,6 +90,16 @@ def test_author_json_path_rejects_traversal(tmp_path):
 def test_load_author_by_id_rejects_traversal(tmp_path):
     with pytest.raises(ValueError, match="Invalid scholar_id"):
         load_author_by_id("../x", str(tmp_path))
+
+
+def test_save_author_by_id_rejects_traversal(tmp_path):
+    with pytest.raises(ValueError, match="Invalid scholar_id"):
+        save_author_by_id({"name": "X"}, "../etc/passwd", str(tmp_path))
+    assert not any(tmp_path.iterdir())
+
+
+def test_load_author_by_id_missing_file(tmp_path):
+    assert load_author_by_id("ynWS968AAAAJ", str(tmp_path)) is None
 
 
 def test_save_and_load_author_by_id_roundtrip(tmp_path):
