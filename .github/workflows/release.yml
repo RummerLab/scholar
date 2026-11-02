@@ -1,0 +1,42 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    name: Require a version tag
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reject branches and non-version tags
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          test "$REF_TYPE" = tag
+          [[ "$REF_NAME" == v* ]]
+
+  checks:
+    needs: tag
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    name: Publish tested release
+    needs: checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Create GitHub release after all checks pass
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release create "$RELEASE_TAG" --verify-tag --generate-notes

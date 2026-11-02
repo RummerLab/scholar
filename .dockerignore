@@ -11,6 +11,7 @@ downloaded_files/
 .vscode/
 .cursor/
 .idea/
+.crag-pr-review/
 
 # Python caches / venvs
 __pycache__/
@@ -19,10 +20,12 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.cache/
 *.egg-info/
 .eggs/
 venv/
 .venv/
+scholar/
 
 # Logs / temp
 *.log

@@ -38,10 +38,14 @@ Or: `python -m ruff check . --fix && python -m ruff format .`
 pip install -r requirements-dev.txt
 pytest tests/ -v
 # CI excludes integration tests:
-pytest tests/ -m "not integration"
+python -m pytest tests/ -m "not integration and not credentials"
+# Production image + Gunicorn smoke check (requires Docker):
+python -m tests.smoke_web
 ```
 
 Add or update tests for code you change. Fix failures before finishing.
+
+API contracts use synthetic data for Rummer, Wu, and Bergseth in `tests/api_support.py`. Keep production smoke tests independent of secrets and upstream services. CI checks Python 3.10 (Docker runtime) and 3.12. Use the manual `Release` workflow against a `v*` tag to run the full checks before publishing; branch rules should require the `Release checks` status.
 
 ## Code quality
 
@@ -77,6 +81,8 @@ Treat `AGENTS.md` as living agent docs (replaces former `.cursor/rules/*.mdc`):
 
 
 ## Pull requests
+
+For repository code changes, create a focused branch, commit and push the changes, and open a pull request by default. Do not stop with local-only edits unless the user explicitly asks for that. Leave unrelated working-tree changes out of the commit.
 
 Before merging any pull request:
 
