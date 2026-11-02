@@ -3,14 +3,35 @@
 import json
 import logging
 import os
+import re
 from datetime import datetime
+from pathlib import Path
 from typing import Any
+
+from .path_safety import safe_path_under
 
 SCHEMA_VERSION = 1
 logger = logging.getLogger(__name__)
 
+# Same character class as ``serve._validated_scholar_id`` (length may vary for tests).
+_SCHOLAR_ID_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 
-def load_author(path: str) -> dict[str, Any] | None:
+
+def author_json_path(scholar_id: str, data_dir: str) -> Path | None:
+    """Resolved ``<scholar_id>.json`` under ``data_dir``, or ``None`` if unsafe."""
+    if not scholar_id or not _SCHOLAR_ID_RE.fullmatch(scholar_id):
+        return None
+    return safe_path_under(os.path.abspath(data_dir), f"{scholar_id}.json")
+
+
+def _require_author_json_path(scholar_id: str, data_dir: str) -> Path:
+    path = author_json_path(scholar_id, data_dir)
+    if path is None:
+        raise ValueError(f"Invalid scholar_id for output path: {scholar_id!r}")
+    return path
+
+
+def load_author(path: str | os.PathLike[str]) -> dict[str, Any] | None:
     """Load author data from JSON file. Returns None if file does not exist or is invalid."""
     if not os.path.isfile(path):
         return None
@@ -23,7 +44,14 @@ def load_author(path: str) -> dict[str, Any] | None:
         return None
 
 
-def save_author(author: dict[str, Any], path: str, *, bump_last_fetched: bool = True) -> None:
+def load_author_by_id(scholar_id: str, data_dir: str) -> dict[str, Any] | None:
+    """Load ``<scholar_id>.json`` under ``data_dir``; raise ``ValueError`` for an unsafe id."""
+    return load_author(_require_author_json_path(scholar_id, data_dir))
+
+
+def save_author(
+    author: dict[str, Any], path: str | os.PathLike[str], *, bump_last_fetched: bool = True
+) -> None:
     """Save author data to JSON with schema_version and optionally ``last_fetched``."""
     author["schema_version"] = SCHEMA_VERSION
     if bump_last_fetched:
@@ -32,6 +60,22 @@ def save_author(author: dict[str, Any], path: str, *, bump_last_fetched: bool = 
     with open(path, "w", encoding="utf-8") as f:
         json.dump(author, f, indent=4)
     logger.debug("Saved author data to %s", path)
+
+
+def save_author_by_id(
+    author: dict[str, Any],
+    scholar_id: str,
+    data_dir: str,
+    *,
+    bump_last_fetched: bool = True,
+) -> Path:
+    """Save ``<scholar_id>.json`` under ``data_dir`` and return its path.
+
+    Raises ``ValueError`` for an unsafe ``scholar_id``.
+    """
+    path = _require_author_json_path(scholar_id, data_dir)
+    save_author(author, path, bump_last_fetched=bump_last_fetched)
+    return path
 
 
 def is_fresh(last_fetched: str | None, fresh_seconds: int) -> bool:

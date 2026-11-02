@@ -17,6 +17,7 @@ from common import PROJECT_ROOT, setup_script  # noqa: E402
 setup_script()
 
 from src.doi_utils import normalize_doi  # noqa: E402
+from src.path_safety import safe_path_under  # noqa: E402
 from src.scholar_citations import (  # noqa: E402
     CACHE_DIR,
     _doi_from_cache_file_or_name,
@@ -43,15 +44,18 @@ def main() -> int:
     data_dir = os.environ.get("SCHOLAR_DATA_DIR", "scholar_data")
     if not os.path.isabs(data_dir):
         data_dir = os.path.join(PROJECT_ROOT, data_dir)
+    data_dir = os.path.abspath(data_dir)
 
     removed_from_data = 0
     if os.path.isdir(data_dir):
         for name in os.listdir(data_dir):
             if not name.endswith(".json"):
                 continue
-            path = os.path.join(data_dir, name)
+            path = safe_path_under(data_dir, name)
+            if path is None:
+                continue
             try:
-                with open(path, encoding="utf-8") as f:
+                with path.open(encoding="utf-8") as f:
                     data = json.load(f)
             except (json.JSONDecodeError, OSError):
                 continue
@@ -63,7 +67,7 @@ def main() -> int:
             if dropped:
                 data["publications"] = new_pubs
                 try:
-                    with open(path, "w", encoding="utf-8") as f:
+                    with path.open("w", encoding="utf-8") as f:
                         json.dump(data, f, indent=2)
                     removed_from_data += dropped
                     print(f"  {name}: removed {dropped} publication(s)")

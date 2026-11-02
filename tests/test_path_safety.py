@@ -47,3 +47,16 @@ def test_safe_path_under_rejects_sibling_prefix_escape(tmp_path: Path):
     assert safe_path_under(base, "x.json") is not None
     # Joining stays under base; sibling escape is structural, not via basename
     assert safe_path_under(base, "x.json").parent == base.resolve()
+
+
+def test_safe_path_under_allows_nested_basename_parts(tmp_path: Path):
+    target = safe_path_under(tmp_path, "crossref_title", "doi_by_title.json")
+    assert target is not None
+    assert target == (tmp_path / "crossref_title" / "doi_by_title.json").resolve()
+
+
+def test_safe_path_under_rejects_dotdot_tokens(tmp_path: Path):
+    # Segments containing ``..`` are rejected (not silently remapped).
+    assert safe_path_under(tmp_path, "..") is None
+    assert safe_path_under(tmp_path, "ok..json") is None
+    assert safe_path_under(tmp_path, "ok.json") == (tmp_path / "ok.json").resolve()

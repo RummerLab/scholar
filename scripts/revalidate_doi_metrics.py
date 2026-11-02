@@ -62,18 +62,23 @@ REVALIDATION_AUTHOR_NAMES = ("Rummer", "Bergseth", "Wu")
 
 def _all_dois_from_scholar_data() -> set[str]:
     """Collect DOIs from scholar_data JSON files for Rummer, Bergseth, Wu only (others 401)."""
+    from src.path_safety import safe_path_under
+
     data_dir = os.environ.get("SCHOLAR_DATA_DIR", "scholar_data")
     if not os.path.isabs(data_dir):
         data_dir = os.path.join(PROJECT_ROOT, data_dir)
+    data_dir = os.path.abspath(data_dir)
     dois: set[str] = set()
     if not os.path.isdir(data_dir):
         return dois
     for name in os.listdir(data_dir):
         if not name.endswith(".json"):
             continue
-        path = os.path.join(data_dir, name)
+        path = safe_path_under(data_dir, name)
+        if path is None:
+            continue
         try:
-            with open(path, encoding="utf-8") as f:
+            with path.open(encoding="utf-8") as f:
                 data = json.load(f)
         except (json.JSONDecodeError, OSError):
             continue

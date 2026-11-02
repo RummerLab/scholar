@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Optional, Protocol, Union
 
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials
 
 from .logger import print_error
 
@@ -47,7 +47,7 @@ def _get_worksheet() -> Optional[Worksheet]:
         return None
 
     try:
-        creds = ServiceAccountCredentials.from_json_keyfile_name(str(_CREDENTIALS_PATH), _SCOPE)
+        creds = Credentials.from_service_account_file(str(_CREDENTIALS_PATH), scopes=_SCOPE)
         client = gspread.authorize(creds)
         _worksheet = client.open_by_url(_SHEET_URL).sheet1
     except Exception as e:

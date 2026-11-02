@@ -4,12 +4,17 @@ import os
 import tempfile
 from datetime import datetime, timedelta
 
+import pytest
+
 from src.output import (
     SCHEMA_VERSION,
+    author_json_path,
     get_last_successful_indices,
     is_fresh,
     load_author,
+    load_author_by_id,
     save_author,
+    save_author_by_id,
     set_last_successful_index,
 )
 
@@ -75,3 +80,33 @@ def test_set_and_get_last_successful_index():
     indices = get_last_successful_indices(author)
     assert indices["coauthor"] == 5
     assert indices["publication"] == 10
+
+
+def test_author_json_path_rejects_traversal(tmp_path):
+    assert author_json_path("../etc/passwd", str(tmp_path)) is None
+    assert author_json_path("..", str(tmp_path)) is None
+
+
+def test_load_author_by_id_rejects_traversal(tmp_path):
+    with pytest.raises(ValueError, match="Invalid scholar_id"):
+        load_author_by_id("../x", str(tmp_path))
+
+
+def test_save_author_by_id_rejects_traversal(tmp_path):
+    with pytest.raises(ValueError, match="Invalid scholar_id"):
+        save_author_by_id({"name": "X"}, "../etc/passwd", str(tmp_path))
+    assert not any(tmp_path.iterdir())
+
+
+def test_load_author_by_id_missing_file(tmp_path):
+    assert load_author_by_id("ynWS968AAAAJ", str(tmp_path)) is None
+
+
+def test_save_and_load_author_by_id_roundtrip(tmp_path):
+    author = {"name": "Test Author", "publications": []}
+    path = save_author_by_id(author, "ynWS968AAAAJ", str(tmp_path))
+    assert path.name == "ynWS968AAAAJ.json"
+    loaded = load_author_by_id("ynWS968AAAAJ", str(tmp_path))
+    assert loaded is not None
+    assert loaded["name"] == "Test Author"
+    assert loaded["schema_version"] == SCHEMA_VERSION
