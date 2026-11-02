@@ -223,14 +223,36 @@ ruff check . --fix && ruff format .
 
 ```bash
 pip install -r requirements-dev.txt
-pytest tests/ -v
+python -m pytest tests/ -m "not integration and not credentials"
 ```
 
-Tests marked `integration` require network access. Tests that need `google-credentials.json` or Scrapling browsers will skip when unavailable. Run lint and format before committing:
+This is the same suite used in CI. It includes Flask response contracts and a real local HTTP server for the Rummer, Wu, and Bergseth profiles (`g9B1IoQAAAAJ` for Brock), publications, and DOI metrics. Synthetic data and isolated temporary caches keep these checks independent of production data, credentials, and upstream API availability. Tests cover author validation, encoded DOIs, cache revalidation, pagination, missing/corrupt data, and provider error responses.
+
+Tests marked `integration` contact external services or need browsers. Run them explicitly with `python -m pytest tests/ -m integration`; credential tests require `google-credentials.json`. Run lint and format before committing:
 
 ```bash
 ruff check . && ruff format --check .
 ```
+
+### Production smoke test and releases
+
+With Docker running, execute from the repository root (works on Windows and Linux):
+
+```bash
+python -m tests.smoke_web
+```
+
+This builds the actual base and web Dockerfiles, starts the web image with its production Gunicorn command and non-root user, waits for its Docker health check, and verifies profile, publication, and metric responses over HTTP for all three scholars. It mounts synthetic profiles and fresh DOI caches from a temporary directory and disables external networking. The container is removed after the check, including on failures, and its logs are printed. To check an image already built, use `python -m tests.smoke_web --no-build --image scholar-web:smoke`.
+
+GitHub Actions runs Ruff, the offline suite on Python **3.10** (the Docker runtime) and **3.12**, and the production Docker smoke test on pull requests, pushes to `main`/`master`, and `v*` tags. The single **Release checks** status fails if any required job fails, is cancelled, or is skipped. Test result XML is uploaded as workflow artifacts. Configure **Release checks** as a required status in the repository's branch protection/ruleset to prevent merging before these checks pass.
+
+To publish a GitHub release, push an existing version tag containing these workflows, then run the **Release** workflow against that tag. For example, using GitHub CLI:
+
+```bash
+gh workflow run release.yml --ref v1.2.2
+```
+
+The workflow rejects branch refs, reruns the entire CI workflow against the selected tag, and creates the release only after every check succeeds. It does not deploy the server. Use this workflow for releases; direct publication through the GitHub UI or another deployment system can bypass it and must be restricted separately. No test suite guarantees upstream services or live websites remain available; these checks protect this repository's API contracts and production image.
 
 ### Security scanning
 
@@ -261,8 +283,10 @@ python server.py
 | `/health` | GET | Health check |
 | `/scholars` | GET | List available scholar IDs |
 | `/scholar/<id>` | GET | Get scholar data by ID (e.g. `/scholar/ynWS968AAAAJ`) |
+| `/scholar/<id>/gscholar` | GET | Profile and citation totals without publications; `?include_publications=1` includes them |
+| `/scholar/<id>/publications` | GET | Publications page; `?limit=50&offset=0` (maximum limit 200) |
 | `/altmetric/<doi>` | GET | Altmetric score for a DOI (cached 2 weeks). 401 if not Rummer/Bergseth/Wu |
-| `/scholar-citations/<doi>` | GET | Google Scholar citation count for a DOI (cached 2 weeks). 401 if not Rummer/Bergseth/Wu |
+| `/google-citations/<doi>` | GET | Google Scholar citation count for a DOI (cached 2 weeks). 401 if not Rummer/Bergseth/Wu |
 | `/crossref/<doi>` | GET | Crossref works API data for a DOI (cached 1 month). 404 if not found |
 
 ### Environment variables

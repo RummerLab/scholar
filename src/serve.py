@@ -59,6 +59,8 @@ def _load_scholar_data_or_error(scholar_id: str):
     try:
         with p.open(encoding="utf-8") as f:
             data = json.load(f)
+        if not isinstance(data, dict):
+            return None, ({"error": "Invalid scholar data"}, 500)
         return data, None
     except FileNotFoundError:
         return None, ({"error": "Author not found"}, 404)
@@ -245,6 +247,8 @@ def _validate_doi_for_api(doi: str) -> tuple[str | None, str | None]:
         return None, "Invalid DOI: must contain a slash (e.g. 10.1234/example)"
     if "%" in normalized:
         return None, "Invalid DOI: malformed encoding (use 10.xxxx/suffix or single-encoded path)"
+    if any(segment in {".", ".."} for segment in normalized.split("/")):
+        return None, "Invalid DOI: path traversal segments are not allowed"
     if not _DOI_PATTERN.match(normalized):
         return None, "Invalid DOI: must match 10.xxxx/suffix format"
     return normalized, None

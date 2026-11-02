@@ -3,6 +3,7 @@
 import json
 import os
 import tempfile
+from pathlib import Path
 
 import pytest
 
@@ -25,12 +26,11 @@ def test_output_schema_and_last_fetched():
         assert isinstance(data["last_fetched"], str)
 
 
-@pytest.mark.integration
-def test_config_loads_from_env():
+def test_config_loads_from_env(monkeypatch, tmp_path):
     """Config reads from environment."""
-    os.environ["SCHOLAR_DATA_DIR"] = "/tmp/scholar_test"
+    monkeypatch.setenv("SCHOLAR_DATA_DIR", str(tmp_path))
     config = Config(scholar_id="test123")
-    assert "scholar_test" in config.output_path or "tmp" in config.output_path
+    assert Path(config.output_path) == tmp_path / "test123.json"
 
 
 def test_retry_decorator_retries_on_exception():
