@@ -29,21 +29,28 @@ def safe_path_under(base_dir: str | os.PathLike[str], *parts: str) -> Path | Non
     """
     clean_parts: list[str] = []
     for part in parts:
-        # Snyk Code: strip traversal tokens before further checks.
-        part = _snyk_strip_dotdot(part)
         if not part or part in (".", "..") or os.path.isabs(part):
             return None
         # Reject / and \\ on all platforms (os.altsep is None on POSIX).
         if "/" in part or "\\" in part:
             return None
+        # Reject (do not silently remap) any segment that contains ``..``.
+        # Still call replace so Snyk Code models a sanitizer on the taint path.
+        stripped = _snyk_strip_dotdot(part)
+        if stripped != part or not stripped:
+            return None
         # CodeQL-modeled sanitizer: basename strips any remaining dir components.
-        name = os.path.basename(part)
-        name = _snyk_strip_dotdot(name)
-        if name != part or not name or name in (".", ".."):
+        name = os.path.basename(stripped)
+        if name != stripped or not name or name in (".", ".."):
             return None
         clean_parts.append(name)
 
-    base = os.path.realpath(_snyk_strip_dotdot(os.fspath(base_dir)))
+    base_raw = os.fspath(base_dir)
+    base_stripped = _snyk_strip_dotdot(base_raw)
+    # Configured roots must not contain ``..`` either.
+    if base_stripped != base_raw:
+        return None
+    base = os.path.realpath(base_stripped)
     candidate = os.path.realpath(os.path.join(base, *clean_parts))
     # Roots already end with sep (`/` or `C:\`); appending again yields `//` / `C:\\`
     # and breaks startswith for every child path.
