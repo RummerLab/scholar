@@ -1,5 +1,6 @@
 /* TEAM */
 Project: RummerLab Scholar
+Creator: Luen Warneke
 Maintainers and contributors: https://github.com/RummerLab/scholar/graphs/contributors
 Source: https://github.com/RummerLab/scholar
 
