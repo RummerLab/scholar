@@ -39,6 +39,22 @@ def test_operational_routes(client, path, status):
         assert response.json == {"status": "healthy"}
 
 
+def test_humans_txt_serves_project_credits(client, monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    response = client.get("/humans.txt")
+    assert response.status_code == 200
+    assert response.mimetype == "text/plain"
+    assert "charset=utf-8" in response.content_type
+    assert "Project: RummerLab Scholar" in response.get_data(as_text=True)
+    assert "https://github.com/RummerLab/scholar/graphs/contributors" in response.get_data(
+        as_text=True
+    )
+    head = client.head("/humans.txt")
+    assert head.status_code == 200
+    assert head.data == b""
+    assert head.content_length == len(response.data)
+
+
 def test_scholar_listing(client):
     assert client.get("/scholars").json == {"scholars": sorted(s[0] for s in SCHOLARS)}
 

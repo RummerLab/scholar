@@ -312,6 +312,9 @@ python server.py
 
 ### API Endpoints
 
+Project and contributor credits are available at `/humans.txt`, served as UTF-8 plain text
+from the repository's `humans.txt` file.
+
 | URL | Method | Description |
 |-----|--------|-------------|
 | `/` | GET | Welcome message |

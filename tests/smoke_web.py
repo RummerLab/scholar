@@ -30,6 +30,9 @@ def check_http_contract(base_url: str) -> None:
 
     status, _, body = get("/health")
     assert status == 200 and json.loads(body) == {"status": "healthy"}
+    status, headers, body = get("/humans.txt")
+    assert status == 200 and "Project: RummerLab Scholar" in body.decode("utf-8")
+    assert headers.get_content_type() == "text/plain"
     status, _, body = get("/scholars")
     assert status == 200 and json.loads(body)["scholars"] == sorted(s[0] for s in SCHOLARS)
     for scholar_id, name, family in SCHOLARS:

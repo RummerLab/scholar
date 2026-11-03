@@ -1,0 +1,13 @@
+/* TEAM */
+Project: RummerLab Scholar
+Maintainers and contributors: https://github.com/RummerLab/scholar/graphs/contributors
+Source: https://github.com/RummerLab/scholar
+
+/* THANKS */
+The open-source communities behind Python, Flask, scholarly, gspread,
+Scrapling, Playwright, and the project's other dependencies.
+
+/* SITE */
+Purpose: Google Scholar data scraper and Flask API for RummerLab.
+Technology: Python, Flask, Gunicorn, Docker.
+Language: English
