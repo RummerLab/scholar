@@ -1,0 +1,25 @@
+# Local development override; production uses only docker-compose.yml.
+services:
+    base:
+        build:
+            context: .
+            dockerfile: base/Dockerfile
+        image: scholar-base:latest
+        command: ['true']
+        restart: 'no'
+
+    web:
+        build:
+            context: .
+            dockerfile: web/Dockerfile
+        image: scholar-web:local
+        labels:
+            com.centurylinklabs.watchtower.enable: 'false'
+
+    cron:
+        build:
+            context: .
+            dockerfile: cron/Dockerfile
+        image: scholar-cron:local
+        labels:
+            com.centurylinklabs.watchtower.enable: 'false'

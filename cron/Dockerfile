@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1
-# Requires scholar-base:latest (build base/Dockerfile first — see docker-compose.yml).
+# Local builds use scholar-base:latest; Bake supplies the shared base target.
 # Cron daemon runs as root (needs privileges); jobs still run as app_user via crontab -u.
-FROM scholar-base:latest
+ARG BASE_IMAGE=scholar-base:latest
+FROM ${BASE_IMAGE}
 
 WORKDIR /app
 

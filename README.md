@@ -26,7 +26,8 @@ See also [Zotero](https://www.zotero.org/), an [open source citation manager](ht
 3. Setup.
 
     ```bash
-    git clone https://github.com/Luen/scholarly-api
+    git clone https://github.com/RummerLab/scholar.git
+    cd scholar
     python -m venv scholar
     source scholar/bin/activate
     pip install -r requirements.txt
@@ -49,26 +50,54 @@ Images are based on `python:3.10-slim-trixie` (Debian 13). The stack includes:
 
 **Cron schedule** (in `cron/Dockerfile`): full scholar pipeline (`python -u main.py <id>`) at **00:00 daily**; DOI metrics revalidation at **02:00 daily** — each for the three scholar IDs in that file.
 
-Build the base image first (web and cron use it; the base container exits immediately). The base image installs Playwright Chromium (for Scrapling browser DOI fetches):
+### Odroid / GHCR deployment
+
+The default `docker-compose.yml` pulls release images from GitHub Container Registry:
+
+- `ghcr.io/rummerlab/scholar:latest` — web API
+- `ghcr.io/rummerlab/scholar-cron:latest` — scheduled scraper
+
+Both images support **linux/arm64** (including the Odroid-M2 with a 64-bit Ubuntu OS) and **linux/amd64**. Docker selects the correct architecture automatically. Playwright Chromium requires a 64-bit OS; 32-bit ARM is not supported. Images become available after the first successful **Release** workflow containing these changes.
+
+For an existing installation in `~/scholar`, after the changes are merged and the first release images have been published:
 
 ```bash
-docker compose build base
+cd ~/scholar
+git pull --ff-only
+docker compose pull
+docker compose up -d --no-build --remove-orphans
+docker compose ps
+curl --fail http://localhost:8000/health
 ```
 
-The **web** image installs Gunicorn again in its own layer and starts the app with `python -m gunicorn`, so the API starts even if `scholar-base:latest` was built earlier without Gunicorn (e.g. stale cache or compose building web before base finished).
+Keep your existing `.env` and `google-credentials.json`. The Compose project name, container names, port **8000**, and named volumes are unchanged, so running these commands from the same directory preserves existing scholar data, caches, and downloads. If you previously used `-p` or `COMPOSE_PROJECT_NAME`, keep that same project name. Do not remove the volumes. `--remove-orphans` removes the obsolete, exited base service. For a new installation, copy `.env.template` to `.env` and supply your Google credentials before starting.
 
-Then start all services (or build and start in one go):
+If either image returns an authentication error, the package owner must make **both** packages public under the RummerLab organization’s Packages → package → Package settings → Change visibility. GHCR packages are initially private even for public repositories ([GitHub documentation](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)). Alternatively, use `docker login ghcr.io` with a classic GitHub token with `read:packages`; private pulls by Watchtower also require its registry authentication configuration ([Watchtower documentation](https://containrrr.dev/watchtower/private-registries/)). No registry token belongs in the repository or image.
+
+### Automatic updates with your existing Watchtower
+
+Both services have `com.centurylinklabs.watchtower.enable=true`. Keep your existing Watchtower container: it will monitor these images by default, or when configured with `--label-enable`. If it restricts updates to container names, include **scholar_web** and **scholar_cron**; if it uses `--scope`, add its matching `com.centurylinklabs.watchtower.scope` label to both services. Ensure it is configured to update containers, rather than only monitor them. See [Watchtower container selection](https://containrrr.dev/watchtower/container-selection/).
+
+With `SCHOLAR_IMAGE_TAG=latest` (the default), each successful stable release advances both `latest` tags; Watchtower pulls changed images and recreates the containers on its existing schedule, retaining their volumes and configuration. Each recreation briefly interrupts that service. Watchtower does not apply future Compose or `.env` changes: apply those with `git pull --ff-only` and `docker compose up -d --no-build`.
+
+For a manual update:
 
 ```bash
-docker compose up -d
-# or, to (re)build everything: docker compose build base && docker compose up -d --build
+docker compose pull && docker compose up -d --no-build
 ```
 
-**Typical home-server update** after pulling code (rebuild containers, then follow logs; `Ctrl+C` stops log follow only):
+To pin or roll back both services, set `SCHOLAR_IMAGE_TAG` in `.env` to a published version such as `v1.2.3`, then run the same command. A version pin stops following new releases; restore `latest` to resume. Rollback retains the data volumes. The original [containrrr/watchtower project](https://github.com/containrrr/watchtower) is archived; the image labels work with your existing installation.
+
+### Building locally
+
+Local builds remain available through an explicit Compose override. Build the shared runtime first, then build and start web/cron:
 
 ```bash
-git pull; docker compose up -d --build; docker compose logs -f
+docker compose -f docker-compose.yml -f docker-compose.build.yml build base
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
+
+The override disables Watchtower updates for the locally built containers. For CI-style builds sharing the base automatically, use `docker buildx bake -f docker-bake.hcl --load` (requires Buildx); this produces `scholar:smoke` and `scholar-cron:smoke` for the host architecture.
 
 For local (non-Docker) browser-based DOI fetching on sites that block plain HTTP, install [Scrapling](https://github.com/D4Vinci/Scrapling) browser deps with `scrapling install` after `pip install -r requirements.txt`.
 
@@ -244,15 +273,21 @@ python -m tests.smoke_web
 
 This builds the actual base and web Dockerfiles, starts the web image with its production Gunicorn command and non-root user, waits for its Docker health check, and verifies profile, publication, and metric responses over HTTP for all three scholars. It mounts synthetic profiles and fresh DOI caches from a temporary directory and disables external networking. The container is removed after the check, including on failures, and its logs are printed. To check an image already built, use `python -m tests.smoke_web --no-build --image scholar-web:smoke`.
 
-GitHub Actions runs Ruff, the offline suite on Python **3.10** (the Docker runtime) and **3.12**, and the production Docker smoke test on pull requests, pushes to `main`/`master`, and `v*` tags. The single **Release checks** status fails if any required job fails, is cancelled, or is skipped. Test result XML is uploaded as workflow artifacts. Configure **Release checks** as a required status in the repository's branch protection/ruleset to prevent merging before these checks pass.
+GitHub Actions runs Ruff, the offline suite on Python **3.10** (the Docker runtime) and **3.12**, and production image checks on native **AMD64 and ARM64** runners. Both architectures build the actual web and cron images through `docker-bake.hcl`, verify the web HTTP contracts, launch Chromium without network access, and check the installed scraper schedule. These checks run on pull requests, pushes to `main`/`master`, and `v*` tags. The single **Release checks** status fails if any required job fails, is cancelled, or is skipped. Test result XML is uploaded as workflow artifacts. Configure **Release checks** as a required status in the repository's branch protection/ruleset.
 
-To publish a GitHub release, push an existing version tag containing these workflows, then run the **Release** workflow against that tag. For example, using GitHub CLI:
+To publish, create and push a new stable `vMAJOR.MINOR.PATCH` tag containing these workflows, then run **Release** against it. For example, choose an unused version and run:
 
 ```bash
-gh workflow run release.yml --ref v1.2.2
+git switch main
+git pull --ff-only
+git tag v1.2.3
+git push origin v1.2.3
+gh workflow run release.yml --ref v1.2.3
 ```
 
-The workflow rejects branch refs, reruns the entire CI workflow against the selected tag, and creates the release only after every check succeeds. It does not deploy the server. Use this workflow for releases; direct publication through the GitHub UI or another deployment system can bypass it and must be restricted separately. No test suite guarantees upstream services or live websites remain available; these checks protect this repository's API contracts and production image.
+The workflow rejects branches and prerelease tags, reruns CI, then builds and tests both architectures before pushing architecture-specific GHCR tags. Only after both succeed does it assemble the versioned multi-platform images, create the GitHub release, and advance the `latest` tags for Watchtower. Version tags include the `v` (for example, `ghcr.io/rummerlab/scholar:v1.2.3`). Publication uses the workflow's `GITHUB_TOKEN` with `packages:write`, with no extra registry secret. The two image tags update sequentially; rerun a failed Release workflow to complete a partial publication. Rerunning an older version deliberately moves `latest` back to that version.
+
+Use this workflow for releases; direct publication through the GitHub UI bypasses the checks and image publication. The workflow does not SSH to the Odroid: Watchtower handles container updates once the deployment uses GHCR images. No test suite guarantees upstream services or live websites remain available; these checks protect the repository's API contracts and production images.
 
 ### Security scanning
 
@@ -263,8 +298,8 @@ GitHub CodeQL default setup is enabled for this repo. Ensure **Python** is inclu
 **Docker (production-style):** the `web` image starts **[Gunicorn](https://docs.gunicorn.org/)** (`server:app`), not Flask’s development server. Access logs and errors go to stdout/stderr for `docker compose logs`.
 
 ```bash
-docker compose up web cron -d --build
-docker compose down; docker volume rm scholar_cache; docker compose up web cron -d --build
+docker compose pull
+docker compose up -d --no-build
 ```
 
 The API is available at `http://localhost:8000` (Docker maps 8000→5000).
@@ -291,6 +326,7 @@ python server.py
 
 ### Environment variables
 
+- `SCHOLAR_IMAGE_TAG` – Compose image tag for both services (default: `latest`; use a published version to pin/roll back)
 - `FLASK_HOST` – Bind host (default: `0.0.0.0`)
 - `FLASK_PORT` – Bind port (default: `5000`)
 - `SCHOLAR_DATA_DIR` – Path to scholar JSON files (default: `scholar_data`)

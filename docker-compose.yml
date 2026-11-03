@@ -1,16 +1,8 @@
 services:
-    base:
-        build:
-            context: .
-            dockerfile: base/Dockerfile
-        image: scholar-base:latest
-        command: ['true']
-        restart: 'no'
-
     web:
-        build:
-            context: .
-            dockerfile: web/Dockerfile
+        image: ghcr.io/rummerlab/scholar:${SCHOLAR_IMAGE_TAG:-latest}
+        labels:
+            com.centurylinklabs.watchtower.enable: 'true'
         container_name: scholar_web
         env_file: .env
         environment:
@@ -35,9 +27,9 @@ services:
             retries: 3
 
     cron:
-        build:
-            context: .
-            dockerfile: cron/Dockerfile
+        image: ghcr.io/rummerlab/scholar-cron:${SCHOLAR_IMAGE_TAG:-latest}
+        labels:
+            com.centurylinklabs.watchtower.enable: 'true'
         container_name: scholar_cron
         env_file: .env
         environment:

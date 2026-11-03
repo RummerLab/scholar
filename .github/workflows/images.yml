@@ -1,0 +1,85 @@
+name: Container images
+
+on:
+  workflow_call:
+    inputs:
+      publish:
+        type: boolean
+        default: false
+
+jobs:
+  images:
+    name: Build and smoke (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: "3.12"
+      - uses: docker/setup-buildx-action@v4
+      - name: Validate deployment and local-build Compose files
+        run: |
+          cp .env.template .env
+          docker compose config --quiet
+          docker compose -f docker-compose.yml -f docker-compose.build.yml config --quiet
+      - name: Configure image names
+        env:
+          REPOSITORY: ${{ github.repository }}
+          VERSION: ${{ inputs.publish && github.ref_name || 'smoke' }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          echo "IMAGE=ghcr.io/${REPOSITORY,,}" >> "$GITHUB_ENV"
+          echo "TAG=${VERSION}-${ARCH}" >> "$GITHUB_ENV"
+          echo "REVISION=$GITHUB_SHA" >> "$GITHUB_ENV"
+      - name: Build both production images with their shared base
+        uses: docker/bake-action@v7
+        with:
+          source: .
+          files: docker-bake.hcl
+          load: true
+          set: |
+            base.cache-from=type=gha,scope=base-${{ matrix.arch }}
+            base.cache-to=type=gha,scope=base-${{ matrix.arch }},mode=max
+            web.cache-from=type=gha,scope=web-${{ matrix.arch }}
+            web.cache-to=type=gha,scope=web-${{ matrix.arch }},mode=max
+            cron.cache-from=type=gha,scope=cron-${{ matrix.arch }}
+            cron.cache-to=type=gha,scope=cron-${{ matrix.arch }},mode=max
+      - name: Verify production HTTP contracts
+        run: python -m tests.smoke_web --no-build --image "$IMAGE:$TAG"
+      - name: Verify Chromium and scraper schedule
+        run: |
+          docker run --rm --network none --entrypoint python "$IMAGE:$TAG" -c '
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as p:
+              browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
+              page = browser.new_page()
+              page.set_content("<title>Scholar smoke</title>")
+              assert page.title() == "Scholar smoke"
+              browser.close()
+          '
+          docker run --rm --network none --entrypoint sh "$IMAGE-cron:$TAG" -ec '
+          test -x /usr/sbin/cron
+          crontab -u app_user -l | grep "main.py ynWS968AAAAJ"
+          crontab -u app_user -l | grep "scripts/revalidate_doi_metrics.py"
+          '
+      - name: Log in to GHCR
+        if: inputs.publish
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push tested architecture images
+        if: inputs.publish
+        run: |
+          docker push "$IMAGE:$TAG"
+          docker push "$IMAGE-cron:$TAG"

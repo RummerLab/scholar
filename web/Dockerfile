@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
-# Requires scholar-base:latest (build base/Dockerfile first — see docker-compose.yml).
-FROM scholar-base:latest
+# Local builds use scholar-base:latest; Bake supplies the shared base target.
+ARG BASE_IMAGE=scholar-base:latest
+FROM ${BASE_IMAGE}
 
 WORKDIR /app
 
