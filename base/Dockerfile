@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Shared runtime for web + cron: Scrapling/Playwright needs Debian slim (not Alpine).
-# Compose tags this as scholar-base:latest before building web/cron.
+# The local Compose override tags this as scholar-base:latest; Bake links it directly.
 # Debian 13 (trixie); Python 3.10.21 — multi-arch index digest (amd64 + arm64).
 FROM python:3.10.21-slim-trixie@sha256:9d53d8d4c0e882f61913025db53b3aec4ef74336082a9ab47d8a14e9e8329b00
 

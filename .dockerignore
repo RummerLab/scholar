@@ -48,6 +48,7 @@ cron.sh
 # Docker meta (not needed inside image)
 Dockerfile*
 docker-compose*.yml
+docker-bake.hcl
 .dockerignore
 base/
 web/

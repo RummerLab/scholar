@@ -4,7 +4,7 @@ Agent-focused guidance for this repository ([AGENTS.md format](https://agents.md
 
 ## Project overview
 
-Google Scholar scraper and Flask API (`RummerLab/scholar`). Runtime deps: `requirements.txt`. Lint/test deps: `requirements-dev.txt` (includes runtime via `-r requirements.txt`). Docker base image: `python:3.10-slim-trixie` (see `base/Dockerfile`); web/cron build on `scholar-base:latest`.
+Google Scholar scraper and Flask API (`RummerLab/scholar`). Runtime deps: `requirements.txt`. Lint/test deps: `requirements-dev.txt` (includes runtime via `-r requirements.txt`). Docker base image: `python:3.10-slim-trixie` (see `base/Dockerfile`). Production Compose pulls web/cron from GHCR; `docker-compose.build.yml` adds local builds using `scholar-base:latest`. CI/release builds use `docker-bake.hcl` to share the base on native AMD64 and ARM64 runners.
 
 ## Setup commands
 
@@ -45,7 +45,7 @@ python -m tests.smoke_web
 
 Add or update tests for code you change. Fix failures before finishing.
 
-API contracts use synthetic data for Rummer, Wu, and Bergseth in `tests/api_support.py`. Keep production smoke tests independent of secrets and upstream services. CI checks Python 3.10 (Docker runtime) and 3.12. Use the manual `Release` workflow against a `v*` tag to run the full checks before publishing; branch rules should require the `Release checks` status.
+API contracts use synthetic data for Rummer, Wu, and Bergseth in `tests/api_support.py`. Keep production smoke tests independent of secrets and upstream services. CI checks Python 3.10 (Docker runtime) and 3.12, plus both container architectures through `images.yml`. Use the manual `Release` workflow against a stable `vMAJOR.MINOR.PATCH` tag to run the full checks before publishing GHCR images and a GitHub release; branch rules should require the `Release checks` status. Only tested releases advance the `latest` image tags used by Watchtower.
 
 ## Code quality
 
