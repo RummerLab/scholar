@@ -5,9 +5,6 @@ FROM ${BASE_IMAGE}
 
 WORKDIR /app
 
-# gunicorn is already in requirements.txt; keep a no-op-safe install for stale base images.
-RUN pip install --no-cache-dir --root-user-action=ignore "gunicorn>=26.0.0"
-
 COPY --chown=app_user:app_user . .
 
 USER app_user

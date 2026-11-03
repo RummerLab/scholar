@@ -21,12 +21,12 @@ RUN useradd -l -m -s /bin/bash app_user
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY --from=ghcr.io/astral-sh/uv:0.13.7@sha256:96f40d3904aad8d0bd010539001d36c8e2188b981e1334471a90c4a1d93bb490 /uv /usr/local/bin/uv
+COPY requirements.lock .
 
 # Scrapling StealthyFetcher uses Playwright Chromium; --with-deps installs OS libs.
 RUN mkdir -p /ms-playwright \
-    && python -m pip install --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt \
+    && uv pip install --system --require-hashes --exclude-newer 3d -r requirements.lock \
     && python -m playwright install --with-deps chromium \
     && chown -R app_user:app_user /ms-playwright \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*

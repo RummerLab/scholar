@@ -3,6 +3,12 @@ name: Container images
 on:
   workflow_call:
     inputs:
+      ref:
+        type: string
+        default: ''
+      tag:
+        type: string
+        default: smoke
       publish:
         type: boolean
         default: false
@@ -22,6 +28,8 @@ jobs:
             runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.ref }}
       - uses: actions/setup-python@v7.1.0
         with:
           python-version: "3.12"
@@ -34,12 +42,12 @@ jobs:
       - name: Configure image names
         env:
           REPOSITORY: ${{ github.repository }}
-          VERSION: ${{ inputs.publish && github.ref_name || 'smoke' }}
+          VERSION: ${{ inputs.tag }}
           ARCH: ${{ matrix.arch }}
         run: |
           echo "IMAGE=ghcr.io/${REPOSITORY,,}" >> "$GITHUB_ENV"
           echo "TAG=${VERSION}-${ARCH}" >> "$GITHUB_ENV"
-          echo "REVISION=$GITHUB_SHA" >> "$GITHUB_ENV"
+          echo "REVISION=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
       - name: Build both production images with their shared base
         uses: docker/bake-action@v7
         with:

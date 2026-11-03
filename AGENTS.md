@@ -88,3 +88,7 @@ Before merging any pull request:
 
 1. **Read all comments** on the PR — conversation comments, review comments (including those on specific lines), and bot comments. Address or acknowledge them. Do not merge while review feedback is unresolved.
 2. **Wait for CI to complete successfully.** GitHub Actions (and other required checks) on the PR must finish and pass. Do not merge while checks are pending, failed, cancelled, or skipped when they are required. If CI fails, fix the cause and wait for a green run before merging.
+
+## Dependency release policy
+
+Images and CI install hash-pinned `requirements*.lock`; direct constraints remain in `requirements*.txt`. Regenerate with `python scripts/dependency_release.py update` using pinned uv. Preserve the three-day release age, bounded upgrades, production-graph release decision, and exact-commit validation in the nightly workflows. Developer-only updates must not publish a release. Container checks use native ARM64 and AMD64 runners with no credentials or external-service access.

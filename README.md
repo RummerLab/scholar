@@ -336,3 +336,26 @@ python server.py
 - `MAX_RETRIES`, `RETRY_BASE_DELAY` – Retry settings for Scholar/DOI APIs
 - `COAUTHOR_DELAY`, `PUBLICATION_DELAY` – Rate limiting (seconds)
 - `LOG_FORMAT` – Set to `json` for structured JSON logs (e.g. in Docker)
+
+## Container releases and nightly dependency updates
+
+Production Compose pulls GHCR images with native ARM64 (Odroid) and AMD64 support. After merging this change and publishing the first release, run from the existing deployment directory:
+
+```bash
+git pull --ff-only
+docker compose pull
+docker compose up -d --no-build --remove-orphans
+docker compose ps
+```
+
+Keep the same Compose project name and existing volumes/bind mounts. Keep your `.env` and credentials; do not delete production data. The existing Watchtower installation can follow `latest` using the containers' `com.centurylinklabs.watchtower.enable=true` labels. If Watchtower filters names or scopes, include these containers in that configuration. No second Watchtower instance is needed. Watchtower applies new images, while future Compose and environment changes still need `git pull` and `docker compose up`. GHCR packages must be public for anonymous pulls; alternatively configure registry authentication in Docker and Watchtower.
+
+Use the Compose tag variable `SCHOLAR_IMAGE_TAG` to pin both services to a published `vMAJOR.MINOR.PATCH` tag for rollback. Local builds use `docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build` (Scholar must first build its base service with the same two files).
+
+`docker-release.yml` publishes stable `v*` tag pushes, manual runs with an existing version tag, and calls from the nightly updater. It checks the exact release commit, validates both native architectures without secrets or upstream services, publishes the GitHub release, then updates the multi-platform `latest` tags. To publish manually, push an unused stable version tag on `main`, or rerun the Docker release workflow with that existing tag. The normal `GITHUB_TOKEN` needs contents/packages write permission; no PAT is required. Tag publication created by `GITHUB_TOKEN` does not trigger other workflows, so nightly calls the reusable release workflow explicitly.
+
+Nightly updates run at 00:27 Australia/Brisbane. Python direct constraints live in `requirements.txt` and `requirements-dev.txt`; their generated `requirements.lock` and `requirements-dev.lock` pin the full graph with hashes. uv excludes versions uploaded in the last **three days** and keeps upgrades within each locked package's major (within its minor for 0.x), without downgrading. The age gate reduces exposure to newly compromised releases; it does not guarantee package safety.
+
+Only a changed **production** Python graph creates a patch version, tag, GitHub release, and image. This includes transitive and platform-specific runtime changes. Developer tooling and hash-only lock changes are committed after checks but do not release. With no changes, the run does nothing. Tests, lint, and a local production image smoke test run before a production update is committed; the release then checks both architectures. The bot refuses to rebase if `main` changed during validation, and pushes the tested commit/tag atomically. Branch rules must allow this bot to push dependency commits to `main`; failures remain visible in Actions rather than bypassing protections.
+
+To refresh manually, install `uv==0.13.7`, then run `python scripts/dependency_release.py update`. Do not edit generated lockfiles by hand. Nightly uses existing stable tags when choosing the next patch version, even if project metadata previously lagged behind a release.

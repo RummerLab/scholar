@@ -1,0 +1,95 @@
+name: Nightly minor deps release
+
+on:
+  schedule:
+    - cron: '27 14 * * *' # Brisbane time: 00:27
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-minor-deps
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    outputs:
+      release: ${{ steps.changes.outputs.release }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Remember tested main
+        run: echo "BASE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Install pinned resolver
+        run: python -m pip install uv==0.13.7
+
+      - name: Refresh aged in-major dependencies
+        id: changes
+        run: python scripts/dependency_release.py update
+      - name: Install locked validation dependencies
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          uv venv --python 3.10 .venv
+          uv pip sync --python .venv/bin/python --require-hashes --exclude-newer 3d  requirements-dev.lock
+      - name: Validate changed dependencies
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          .venv/bin/ruff check .
+          .venv/bin/ruff format --check .
+          .venv/bin/python -m pytest tests/ -m "not integration and not credentials"
+
+      - uses: docker/setup-buildx-action@v4
+        if: steps.changes.outputs.release == 'true'
+      - name: Verify updated production image before committing
+        if: steps.changes.outputs.release == 'true'
+        run: |
+          docker buildx bake -f docker-bake.hcl --load
+          .venv/bin/python -m tests.smoke_web --no-build --image scholar:smoke
+      - name: Bump patch only for production changes
+        id: version
+        if: steps.changes.outputs.release == 'true'
+        run: python scripts/dependency_release.py bump
+      - name: Commit and atomically push tested dependencies
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          RELEASE: ${{ steps.changes.outputs.release }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          if [ "$(git rev-parse origin/main)" != "$BASE_SHA" ]; then
+            echo 'main changed during validation; refusing to release an untested rebase.' >&2
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add requirements.lock requirements-dev.lock
+          if [ "$RELEASE" = true ]; then
+            git add pyproject.toml
+            git commit -m "chore(deps): nightly in-major production update (v$VERSION)"
+            git tag "v$VERSION"
+            git push --atomic origin HEAD:main "refs/tags/v$VERSION"
+          else
+            git commit -m 'chore(deps): nightly tooling update (no release)'
+            git push origin HEAD:main
+          fi
+  docker:
+    needs: update
+    if: needs.update.outputs.release == 'true'
+    uses: ./.github/workflows/docker-release.yml
+    with:
+      ref: v${{ needs.update.outputs.version }}
+    permissions:
+      contents: write
+      packages: write
