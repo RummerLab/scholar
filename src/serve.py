@@ -99,6 +99,13 @@ def favicon():
     return "", 204  # No content
 
 
+@app.route("/humans.txt", methods=["GET"])
+def humans_txt():
+    """Serve project credits from the version-controlled humans.txt file."""
+    root = Path(__file__).resolve().parents[1]
+    return send_from_directory(root, "humans.txt", mimetype="text/plain; charset=utf-8")
+
+
 @app.route("/", methods=["GET"])
 def index():
     return "Welcome to the RummerLab API"
