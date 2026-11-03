@@ -91,4 +91,4 @@ Before merging any pull request:
 
 ## Dependency release policy
 
-Images and CI install hash-pinned `requirements*.lock`; direct constraints remain in `requirements*.txt`. Regenerate with `python scripts/dependency_release.py update` using pinned uv (and pnpm for the podcast frontend). Preserve the three-day release age, bounded upgrades, production-graph release decision, and exact-commit validation in the nightly workflows. Developer-only updates must not publish a release. Container checks use native ARM64 and AMD64 runners with no credentials or external-service access.
+Images and CI install hash-pinned `requirements*.lock`; direct constraints remain in `requirements*.txt`. Regenerate with `python scripts/dependency_release.py update` using pinned uv. Preserve the three-day release age, bounded upgrades, production-graph release decision, and exact-commit validation in the nightly workflows. Developer-only updates must not publish a release. Container checks use native ARM64 and AMD64 runners with no credentials or external-service access.
