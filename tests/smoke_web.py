@@ -14,7 +14,13 @@ from urllib.error import HTTPError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
-from tests.api_support import SCHOLARS, seed_api_data
+from tests.api_support import (
+    SCHOLARS,
+    assert_website_metric_contract,
+    assert_website_profile_contract,
+    assert_website_publications_contract,
+    seed_api_data,
+)
 
 
 def check_http_contract(base_url: str) -> None:
@@ -38,25 +44,20 @@ def check_http_contract(base_url: str) -> None:
     for scholar_id, name, family in SCHOLARS:
         status, _, body = get(f"/scholar/{scholar_id}/gscholar")
         profile = json.loads(body)
-        assert status == 200 and profile["name"] == name
-        assert profile["citedby"] == 123 and profile["hindex"] == 12
-        assert "publications" not in profile
+        assert status == 200
+        assert_website_profile_contract(profile, scholar_id, name)
         status, _, body = get(f"/scholar/{scholar_id}/publications?limit=1&offset=0")
         page = json.loads(body)
-        assert status == 200 and page["id"] == scholar_id and page["total"] == 3
-        assert len(page["publications"]) == 1
+        assert status == 200
+        assert_website_publications_contract(page, scholar_id, family)
+        assert page["limit"] == 1 and page["offset"] == 0
         doi = page["publications"][0]["doi"]
-        assert doi == f"10.1234/{family.lower()}-0"
-        for route, key, value in [
-            ("altmetric", "score", 7),
-            ("google-citations", "citations", 42),
-            ("crossref", "is-referenced-by-count", 23),
-        ]:
+        for route in ("altmetric", "google-citations", "crossref"):
             path = f"/{route}/{quote(doi, safe='')}"
             status, headers, body = get(path)
             result = json.loads(body)
             assert status == 200, (path, status, result)
-            assert (result["message"] if route == "crossref" else result)[key] == value
+            assert_website_metric_contract(route, result, doi, family, name)
             assert result["last_fetch"] and result["last_fetched_result"] == "success"
             assert "max-age=86400" in headers["Cache-Control"]
             status, _, body = get(path, {"If-None-Match": headers["ETag"]})

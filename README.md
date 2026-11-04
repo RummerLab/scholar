@@ -255,7 +255,7 @@ pip install -r requirements-dev.txt
 python -m pytest tests/ -m "not integration and not credentials"
 ```
 
-This is the same suite used in CI. It includes Flask response contracts and a real local HTTP server for the Rummer, Wu, and Bergseth profiles (`g9B1IoQAAAAJ` for Brock), publications, and DOI metrics. Synthetic data and isolated temporary caches keep these checks independent of production data, credentials, and upstream API availability. Tests cover author validation, encoded DOIs, cache revalidation, pagination, missing/corrupt data, and provider error responses.
+This is the same suite used in CI. It includes Flask response contracts and a real local HTTP server for the Rummer, Wu, and Bergseth profiles (`g9B1IoQAAAAJ` for Brock), publications, and DOI metrics. Synthetic data and isolated temporary caches keep these checks independent of production data, credentials, and upstream API availability. Contracts lock website-facing fields used by RummerLab and Nicholas-Wu-Lab: profile citation indices and coauthors, publication `doi`/`bib.title`/`num_citations`, Google Scholar `citations`, Altmetric score plus bibliographic metadata and mention counts, and Crossref `message` metadata (`title`, `container-title`, `author`, `issued`, `URL`, `is-referenced-by-count`). Tests also cover author validation, encoded DOIs, cache revalidation, pagination, missing/corrupt data, and provider error responses.
 
 Tests marked `integration` contact external services or need browsers. Run them explicitly with `python -m pytest tests/ -m integration`; credential tests require `google-credentials.json`. Run lint and format before committing:
 

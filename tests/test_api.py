@@ -11,7 +11,14 @@ from src import scholar_citations as metrics
 from src import serve
 from src.crossref import crossref_response_from_message
 from src.output import save_author_by_id
-from tests.api_support import SCHOLARS, author_data, seed_api_data
+from tests.api_support import (
+    SCHOLARS,
+    assert_website_metric_contract,
+    assert_website_profile_contract,
+    assert_website_publications_contract,
+    author_data,
+    seed_api_data,
+)
 
 
 @pytest.fixture
@@ -60,6 +67,16 @@ def test_scholar_listing(client):
 
 
 @pytest.mark.parametrize("scholar_id,name,family", SCHOLARS)
+def test_seeded_profiles_match_website_consumer_contract(client, scholar_id, name, family):
+    profile = client.get(f"/scholar/{scholar_id}/gscholar")
+    assert profile.status_code == 200
+    assert_website_profile_contract(profile.json, scholar_id, name)
+    page = client.get(f"/scholar/{scholar_id}/publications?limit=1&offset=0")
+    assert page.status_code == 200
+    assert_website_publications_contract(page.json, scholar_id, family)
+
+
+@pytest.mark.parametrize("scholar_id,name,family", SCHOLARS)
 def test_saved_author_serves_website_profile_and_publications(client, scholar_id, name, family):
     author = author_data(scholar_id, name, family)
     save_author_by_id(author, scholar_id, serve.SCHOLAR_DATA_DIR_ABS)
@@ -72,6 +89,7 @@ def test_saved_author_serves_website_profile_and_publications(client, scholar_id
     profile = client.get(f"/scholar/{scholar_id}/gscholar")
     assert profile.status_code == 200
     assert profile.json == {key: value for key, value in author.items() if key != "publications"}
+    assert_website_profile_contract(profile.json, scholar_id, name)
     assert client.get(f"/scholar/{scholar_id}/gscholar?include_publications=1").json == author
 
     page = client.get(f"/scholar/{scholar_id}/publications?limit=2&offset=1")
@@ -83,6 +101,9 @@ def test_saved_author_serves_website_profile_and_publications(client, scholar_id
         "offset": 1,
         "publications": author["publications"][1:3],
     }
+    seeded = client.get(f"/scholar/{scholar_id}/publications?limit=1&offset=0")
+    assert seeded.status_code == 200
+    assert_website_publications_contract(seeded.json, scholar_id, family)
 
 
 @pytest.mark.parametrize("selector", ["parts", "fields"])
@@ -173,14 +194,7 @@ def test_cached_metrics_website_contract(client, scholar_id, name, family, route
     response = client.get(f"/{route}/{quote(doi, safe='') if encoded else doi}")
     assert response.status_code == 200
     body = response.json
-    if route == "crossref":
-        assert body["message"]["DOI"] == doi
-        assert body["message"]["is-referenced-by-count"] == 23
-    else:
-        assert body["doi"] == doi
-        assert body["score" if route == "altmetric" else "citations"] == (
-            7 if route == "altmetric" else 42
-        )
+    assert_website_metric_contract(route, body, doi, family, name)
     assert body["last_fetch"]
     assert body["last_successful_fetch"]
     assert body["last_fetched_result"] == "success"
