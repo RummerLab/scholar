@@ -45,7 +45,7 @@ python -m tests.smoke_web
 
 Add or update tests for code you change. Fix failures before finishing.
 
-API contracts use synthetic data for Rummer, Wu, and Bergseth in `tests/api_support.py`. Keep production smoke tests independent of secrets and upstream services. CI checks Python 3.10 (Docker runtime) and 3.12, plus both container architectures through `images.yml`. Use the manual `Release` workflow against a stable `vMAJOR.MINOR.PATCH` tag to run the full checks before publishing GHCR images and a GitHub release; branch rules should require the `Release checks` status. Only tested releases advance the `latest` image tags used by Watchtower.
+API contracts use synthetic data for Rummer, Wu, and Bergseth in `tests/api_support.py`. Those contracts protect RummerLab and Nicholas-Wu-Lab website consumers of this API. When changing `/scholar/...`, `/altmetric/...`, `/google-citations/...`, or `/crossref/...` response shapes, update the fixtures and shared `assert_website_*` helpers in `tests/api_support.py` so unit tests and `smoke_web` stay aligned—do not thin fixtures below fields those sites read. Keep production smoke tests independent of secrets and upstream services (no live `api.rummerlab.com` checks in CI). CI checks Python 3.10 (Docker runtime) and 3.12, plus both container architectures through `images.yml`. Use the manual `Release` workflow against a stable `vMAJOR.MINOR.PATCH` tag to run the full checks before publishing GHCR images and a GitHub release; branch rules should require the `Release checks` status. Only tested releases advance the `latest` image tags used by Watchtower.
 
 ## Code quality
 
