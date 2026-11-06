@@ -2,7 +2,7 @@
 # Shared runtime for web + cron: Scrapling/Playwright needs Debian slim (not Alpine).
 # The local Compose override tags this as scholar-base:latest; Bake links it directly.
 # Debian 13 (trixie); Python 3.10.21 — multi-arch index digest (amd64 + arm64).
-FROM python:3.10.21-slim-trixie@sha256:9d53d8d4c0e882f61913025db53b3aec4ef74336082a9ab47d8a14e9e8329b00
+FROM python:3.15.0-slim-trixie@sha256:f5b92f2a669a4c347044f29367f31983280b648250ca94dea66f98c53bc87e58
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
