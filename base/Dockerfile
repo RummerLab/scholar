@@ -11,9 +11,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 # curl: compose / Dockerfile web healthchecks.
+# libatomic1: Playwright's bundled Node needs libatomic.so.1 (not covered by --with-deps).
 RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
         ca-certificates \
+        libatomic1 \
     && rm -rf /var/lib/apt/lists/*
 
 # -l avoids oversized sparse lastlog files with high UIDs
